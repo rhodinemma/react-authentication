@@ -3,9 +3,18 @@ import { useForm } from "react-hook-form"
 import { yupResolver } from "@hookform/resolvers/yup";
 import { authClasses } from "./authClasses"
 import { AuthForm, authFormSchema } from "../../models/Form"
+import { createUserWithEmailAndPassword } from "firebase/auth"
+import { setDoc, doc } from "firebase/firestore"
+import { auth, db } from "../../firebase";
+import { useAppDispatch } from "../../hooks/storeHook";
+import { login } from "../../features/authSlice";
 
 const Auth = () => {
     const [authType, setAuthType] = useState<"login" | "sign-up">("login")
+    const [loading, setLoading] = useState<boolean>(false)
+    const [errorMessage, setErrorMessage] = useState<null | string>("")
+
+    const dispatch = useAppDispatch();
 
     const { container, form, button, input, text, link, hr, forgotPasswordButton } = authClasses
 
@@ -13,8 +22,27 @@ const Auth = () => {
         resolver: yupResolver(authFormSchema)
     })
 
-    const handleFormSubmit = (data: AuthForm) => {
-        console.log(data)
+    const handleFormSubmit = async (data: AuthForm) => {
+        const { email, password } = data
+        if (authType === "sign-up") {
+            try {
+                setLoading(true)
+                const { user } = await createUserWithEmailAndPassword(auth, email, password)
+                console.log(user)
+
+                await setDoc(doc(db, "users", user.uid), {
+                    email
+                })
+
+                setLoading(false)
+
+                if (user && user.email) dispatch(login({ email: user.email, id: user.uid, photoUrl: user.photoURL }))
+            } catch (error: any) {
+                setLoading(false)
+                const errorCode = error.code;
+                setErrorMessage(errorCode);
+            }
+        } else { }
     }
 
     const handleAuthType = () => {
@@ -25,6 +53,11 @@ const Auth = () => {
         <>
             <div className={container}>
                 <div className="w-full max-w-sm rounded-lg bg-slate-700/30 shadow">
+                    {errorMessage && (
+                        <p className="bg-red-400 px-3 py-2 text-center rounded-md text-white">
+                            {errorMessage}
+                        </p>
+                    )}
                     <form className={form} onSubmit={handleSubmit(handleFormSubmit)}>
                         <div className="grid gap-y-3">
                             <button className={button} type="button">Google</button>
@@ -50,7 +83,7 @@ const Auth = () => {
                                 {errors.confirmPassword ? <span className="text-red-700">{errors.confirmPassword.message}</span> : <></>}
                             </div>
 
-                            <button className={button}>Sign {authType === "login" ? "in" : "up"} with email</button>
+                            <button disabled={loading} className={button}>Sign {authType === "login" ? "in" : "up"} with email</button>
                         </div>
 
                         <div className="text-sm font-light py-4">
