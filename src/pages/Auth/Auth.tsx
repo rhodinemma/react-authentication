@@ -1,32 +1,73 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form"
 import { yupResolver } from "@hookform/resolvers/yup";
 import { authClasses } from "./authClasses"
 import { AuthForm, authFormSchema } from "../../models/Form"
-import { createUserWithEmailAndPassword } from "firebase/auth"
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth"
 import { setDoc, doc } from "firebase/firestore"
 import { auth, db } from "../../firebase";
-import { useAppDispatch } from "../../hooks/storeHook";
+import { useAppDispatch, useAppSelector } from "../../hooks/storeHook";
 import { login } from "../../features/authSlice";
+import ResetPassword from "../../components/ResetPassword/ResetPassword";
 
 const Auth = () => {
     const [authType, setAuthType] = useState<"login" | "sign-up">("login")
     const [loading, setLoading] = useState<boolean>(false)
     const [errorMessage, setErrorMessage] = useState<null | string>("")
+    const [resetPassword, setResetPassword] = useState(false)
+    const [resetPasswordEmail, setResetPasswordEmail] = useState("");
+    const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
+    const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
 
+    const { user } = useAppSelector((state) => state.auth)
     const dispatch = useAppDispatch();
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        if (Boolean(user)) {
+            navigate("/")
+        }
+    }, [user, navigate])
+
 
     const { container, form, button, input, text, link, hr, forgotPasswordButton } = authClasses
+
+    const handlePasswordReset = async () => {
+        if (!resetPasswordEmail.length) return;
+
+        try {
+            await sendPasswordResetEmail(auth, resetPasswordEmail)
+            setResetPasswordSuccess("Check your email for further instructions")
+            setResetPasswordError(null)
+        } catch (error: any) {
+            setResetPasswordError(error.message)
+            setResetPasswordSuccess(null)
+        }
+    }
+
+    const signInWithGoogle = async () => {
+        const provider = new GoogleAuthProvider()
+        try {
+            const { user } = await signInWithPopup(auth, provider)
+            console.log(user)
+            if (user && user.email) dispatch(login({ email: user.email, id: user.uid, photoUrl: user.photoURL }))
+        } catch (error: any) {
+            const errorCode = error.code;
+            setErrorMessage(errorCode);
+        }
+    }
 
     const { register, handleSubmit, formState: { errors } } = useForm<AuthForm>({
         resolver: yupResolver(authFormSchema)
     })
 
     const handleFormSubmit = async (data: AuthForm) => {
+        setErrorMessage(null)
+        setLoading(true)
         const { email, password } = data
         if (authType === "sign-up") {
             try {
-                setLoading(true)
                 const { user } = await createUserWithEmailAndPassword(auth, email, password)
                 console.log(user)
 
@@ -42,7 +83,11 @@ const Auth = () => {
                 const errorCode = error.code;
                 setErrorMessage(errorCode);
             }
-        } else { }
+        } else {
+            const { user } = await signInWithEmailAndPassword(auth, email, password)
+            setLoading(false)
+            if (user && user.email) dispatch(login({ email: user.email, id: user.uid, photoUrl: user.photoURL }))
+        }
     }
 
     const handleAuthType = () => {
@@ -51,6 +96,7 @@ const Auth = () => {
 
     return (
         <>
+            <ResetPassword isOpen={resetPassword} onClose={() => setResetPassword(false)} handlePasswordReset={handlePasswordReset} resetPasswordEmail={resetPasswordEmail} resetPasswordSuccess={resetPasswordSuccess} resetPasswordError={resetPasswordError} setResetPasswordEmail={setResetPasswordEmail} />
             <div className={container}>
                 <div className="w-full max-w-sm rounded-lg bg-slate-700/30 shadow">
                     {errorMessage && (
@@ -60,7 +106,7 @@ const Auth = () => {
                     )}
                     <form className={form} onSubmit={handleSubmit(handleFormSubmit)}>
                         <div className="grid gap-y-3">
-                            <button className={button} type="button">Google</button>
+                            <button className={button} type="button" onClick={signInWithGoogle}>Google</button>
                         </div>
 
                         <div className="my-3 flex items-center px-3">
@@ -107,7 +153,7 @@ const Auth = () => {
 
                         <div className="my-3 flex items-center px-3">
                             <hr className={hr} />
-                            <button type="button" className={forgotPasswordButton}>forgot password</button>
+                            <button onClick={() => setResetPassword(true)} type="button" className={forgotPasswordButton}>forgot password</button>
                             <hr className={hr} />
                         </div>
                     </form>
