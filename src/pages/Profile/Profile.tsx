@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Header from "../../components/Header/Header"
 import ProfileCard from "../../components/ProfileCard/ProfileCard"
 import { useAppDispatch, useAppSelector } from "../../hooks/storeHook"
@@ -13,7 +13,6 @@ const Profile = () => {
     const [resetPasswordEmail, setResetPasswordEmail] = useState("");
     const [resetPasswordSuccess, setResetPasswordSuccess] = useState<string | null>(null);
     const [resetPasswordError, setResetPasswordError] = useState<string | null>(null);
-
 
     const { user } = useAppSelector((state) => state.auth)
     const dispatch = useAppDispatch()
@@ -37,12 +36,6 @@ const Profile = () => {
             setResetPasswordSuccess(null)
         }
     }
-
-    useEffect(() => {
-        if (Boolean(!user)) {
-            navigate("/auth")
-        }
-    }, [navigate, user])
 
     return (
         <>
